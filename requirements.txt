@@ -1,0 +1,13 @@
+google-generativeai
+markdown
+httpx
+tenacity
+requests
+Pillow
+httpcore[asyncio]
+
+# HTML Optimizer dependencies
+beautifulsoup4
+premailer
+bleach
+# tinify==1.6.0 # Optional: for advanced image compression, requires an API key
