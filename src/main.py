@@ -3,7 +3,6 @@ import markdown
 import datetime
 from zoneinfo import ZoneInfo
 import os
-import pprint
 import sys
 import json
 
@@ -18,7 +17,8 @@ if project_root not in sys.path:
 from src.config import STAGE_CONFIG # 导入外部配置
 # from src.services.cctv_crawler import fetch_news_data, fetch_item_content
 from src.services.cctv_fetcher import fetch_news_data, fetch_item_content
-from src.services.gemini_analyzer import analyze_news_with_gemini
+# from src.services.gemini_analyzer import analyze_news_with_gemini
+from src.services.gemini_analyzer_proxy import analyze_news_with_gemini
 from src.services.wechat_clients import WeChatWorkClient, WeChatMPClient
 from src.utils.image_processor import download_selected_images, create_image_grid
 
@@ -143,7 +143,7 @@ async def main_workflow():
         if STAGE_CONFIG.get("force_rerun_analysis", False) and "analysis" in news_data:
             print("    `force_rerun_analysis` 已激活，强制重新分析。")
         try:
-            generated_analysis = await analyze_news_with_gemini(valid_contents)
+            generated_analysis =  analyze_news_with_gemini(valid_contents)
             if generated_analysis:
                 analysis_text = generated_analysis
                 news_data['analysis'] = analysis_text
