@@ -80,7 +80,7 @@ async def fetch_news_data() -> Optional[Dict[str, Any]]:
 
 @retry(
     stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    wait=wait_exponential(multiplier=1, min=5, max=10),
     retry=retry_if_exception_type((ConnectTimeout, ReadTimeout, RemoteProtocolError))
 )
 async def fetch_item_content(url: str):

@@ -16,7 +16,8 @@ if project_root not in sys.path:
 
 # 模块导入
 from src.config import STAGE_CONFIG # 导入外部配置
-from src.services.cctv_crawler import fetch_news_data, fetch_item_content
+# from src.services.cctv_crawler import fetch_news_data, fetch_item_content
+from src.services.cctv_fetcher import fetch_news_data, fetch_item_content
 from src.services.gemini_analyzer import analyze_news_with_gemini
 from src.services.wechat_clients import WeChatWorkClient, WeChatMPClient
 from src.utils.image_processor import download_selected_images, create_image_grid
@@ -86,7 +87,7 @@ async def main_workflow():
     if not news_data:
         print(">>> [2.1] 正在获取新闻列表...")
         try:
-            fetched_data = await fetch_news_data()
+            fetched_data =  fetch_news_data()
             if fetched_data:
                 news_data = fetched_data
                 news_data['fetch_timestamp'] = datetime.datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
@@ -108,11 +109,14 @@ async def main_workflow():
         if STAGE_CONFIG.get("force_fetch_contents", False) and "contents" in news_data:
             print("    `force_fetch_contents` 已激活，强制重新获取。")
         
-        news_links = news_data.get("news_links", [])
+        news_links = news_data.get("news_list_detail", [])
         items_to_fetch = news_links
         
-        content_tasks = [fetch_item_content(item["href"]) for item in items_to_fetch]
-        news_contents = await asyncio.gather(*content_tasks, return_exceptions=True)
+        # content_tasks = [fetch_item_content(item["href"]) for item in items_to_fetch]
+        # news_contents = await asyncio.gather(*content_tasks, return_exceptions=True)
+
+        news_contents = [fetch_item_content(item) for item in items_to_fetch]
+        # news_contents = await asyncio.gather(*content_tasks, return_exceptions=True)
 
         # 处理结果，过滤掉None和异常
         valid_contents = []
