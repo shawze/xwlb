@@ -26,7 +26,7 @@ IMAGES_NEEDED = GRID_COLS * GRID_ROWS
 )
 async def download_image_with_retry(client: httpx.AsyncClient, url: str):
     """使用重试机制异步下载单个图片。"""
-    print(f"尝试下载: {url}")
+    # print(f"尝试下载: {url}")
     response = await client.get(url, timeout=20.0)
     response.raise_for_status()
     return response.content
@@ -41,7 +41,7 @@ async def _download_images_concurrently(client: httpx.AsyncClient, image_urls: L
         if isinstance(result, Exception):
             print(f"下载最终失败 {image_urls[i]}: {repr(result)}")
         else:
-            print(f"下载成功: {image_urls[i]}")
+            # print(f"下载成功: {image_urls[i]}")
             image_bytes_list.append(result)
             
     return image_bytes_list

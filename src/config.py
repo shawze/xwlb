@@ -8,8 +8,6 @@ class Config(object):
 
     def __init__(self, config_file='config.ini'):
         # 构造配置文件的绝对路径
-        # os.path.dirname(__file__) 获取当前文件(src/config.py)的目录
-        # os.path.join(..., '..', 'Config', config_file) 向上回退一级再进入Config目录
         self._path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config', config_file))
         if not os.path.exists(self._path):
             raise FileNotFoundError(f"配置文件未找到: {self._path}")
@@ -52,7 +50,7 @@ def load_stage_config(config: Config) -> dict:
     try:
         # 读取主要流程开关
         stage_keys = [
-            "publish_wechat_work", "publish_wechat_mp"
+            "publish_wechat_work", "publish_wechat_mp","publish_xueqiu"
         ]
         for key in stage_keys:
             cfg[key] = config.getboolean('StageControl', key)
@@ -60,7 +58,8 @@ def load_stage_config(config: Config) -> dict:
         # 读取调试与缓存控制开关
         debug_keys = [
             "force_fetch_news", "force_fetch_contents", "force_rerun_analysis",
-            "force_regenerate_cover", "force_publish_work", "force_publish_mp"
+            "force_regenerate_cover", "force_publish_work", "force_publish_mp",
+            "force_publish_xueqiu"  # <-- 已添加缺失的配置项
         ]
         for key in debug_keys:
             cfg[key] = config.getboolean('DebugControl', key)
@@ -69,9 +68,10 @@ def load_stage_config(config: Config) -> dict:
         print(f"加载 STAGE_CONFIG 失败，请检查 config.ini 文件: {e}")
         # 在失败时提供一个默认的安全配置，避免程序崩溃
         return {
-            "publish_wechat_work": False, "publish_wechat_mp": False, # 默认关闭发布
+            "publish_wechat_work": False, "publish_wechat_mp": False, "publish_xueqiu": False,
             "force_fetch_news": False, "force_fetch_contents": False, "force_rerun_analysis": False,
-            "force_regenerate_cover": False, "force_publish_work": False, "force_publish_mp": False
+            "force_regenerate_cover": False, "force_publish_work": False, "force_publish_mp": False,
+            "force_publish_xueqiu": False
         }
     return cfg
 

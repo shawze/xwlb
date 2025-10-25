@@ -15,11 +15,11 @@ if project_root not in sys.path:
 
 # 模块导入
 from src.config import STAGE_CONFIG # 导入外部配置
-# from src.services.cctv_crawler import fetch_news_data, fetch_item_content
+from src.config import global_config
 from src.services.cctv_fetcher import fetch_news_data, fetch_item_content
-# from src.services.gemini_analyzer import analyze_news_with_gemini
 from src.services.gemini_analyzer_proxy import analyze_news_with_gemini
 from src.services.wechat_clients import WeChatWorkClient, WeChatMPClient
+from src.services.xueqiu import XueqiuPublisher
 from src.utils.image_processor import download_selected_images, create_image_grid
 
 # --- 全局常量 ---
@@ -112,11 +112,7 @@ async def main_workflow():
         news_links = news_data.get("news_list_detail", [])
         items_to_fetch = news_links
         
-        # content_tasks = [fetch_item_content(item["href"]) for item in items_to_fetch]
-        # news_contents = await asyncio.gather(*content_tasks, return_exceptions=True)
-
         news_contents = [fetch_item_content(item) for item in items_to_fetch]
-        # news_contents = await asyncio.gather(*content_tasks, return_exceptions=True)
 
         # 处理结果，过滤掉None和异常
         valid_contents = []
@@ -185,7 +181,6 @@ async def main_workflow():
             except Exception as e:
                 print(f"    [错误] 查找缓存封面图时出错: {e}")
 
-        #
         if not collage_path:
             print("    未找到本地封面，开始创建新封面...")
             try:
@@ -249,14 +244,12 @@ async def main_workflow():
 
     # --- [阶段 5/5] 多平台发布 ---
     print("\n--- [5/5] 多平台发布 ---")
-    msg_title = f"{news_date} 新闻联播AI解读" if news_date else "新闻联播AI解读 (默认标题)"
+    msg_title = f"{news_date} 新闻联播解读" if news_date else "新闻联播解读 (默认标题)"
     
     if not analysis_text:
         print(">>> [失败] 无AI分析内容，无法发布。工作流终止。")
         return
 
-    # 决定是否应该自动发布
-    # 自动发布的条件：数据是24小时内新获取的，并且之前没有发布过
     is_eligible_for_auto_publish = False
     if news_data.get("fetch_timestamp"):
         fetch_time = datetime.datetime.fromisoformat(news_data["fetch_timestamp"])
@@ -266,15 +259,16 @@ async def main_workflow():
 
     should_publish_work = (is_eligible_for_auto_publish and not news_data.get("work_publish_timestamp")) or STAGE_CONFIG.get("force_publish_work", False)
     should_publish_mp = (is_eligible_for_auto_publish and not news_data.get("mp_publish_timestamp")) or STAGE_CONFIG.get("force_publish_mp", False)
+    should_publish_xueqiu = (is_eligible_for_auto_publish and not news_data.get("xueqiu_publish_timestamp")) or STAGE_CONFIG.get("force_publish_xueqiu", False)
 
-    # 准备HTML内容
+    # 准备HTML内容 (用于微信)
     html_content = markdown.markdown(analysis_text)
     clean_html_content = html_content.replace("\n", "").replace("\r", "").strip()
     qr_code_url = "https://mmbiz.qpic.cn/sz_mmbiz_png/oJkJlLSQ7U2ibmnVgKW2PzL3oicrSta2njI9ghvUiaghV3p1g9oHKTagyqN3iacwswMRDOjJibnKsbK1Z0AzfMcoUDQ/640?wx_fmt=png&amp"
     fill_html = "<section><span><br></span></section>"
     html_qrcode = f'<div><img src="{qr_code_url}"></div>'
     final_html_content = clean_html_content + fill_html + fill_html + html_qrcode
-    print(">>> HTML内容已生成。")
+    print(">>> HTML内容已为微信平台生成。")
 
     publish_state_updated = False
     # a. 企业微信发布
@@ -318,8 +312,35 @@ async def main_workflow():
             print("    >>> 跳过创建草稿，数据不是新生成或未被强制发布。")
     else:
         print(">>> [5.2] 跳过微信公众号发布 (配置已禁用)。")
+
+    # c. 雪球发布
+    html_xuqiu = f'<div><strong>关注微信公众号,每日定时更新: Cloudify </strong></div>'
+    xuqiu_html_content = html_xuqiu + fill_html + fill_html + clean_html_content + fill_html + fill_html + html_xuqiu
+
+    if STAGE_CONFIG.get("publish_xueqiu", False):
+        print(">>> [5.3] 雪球发布...")
+        if should_publish_xueqiu:
+            xueqiu_cookie = global_config.get("XUEQIU","XUEQIU_COOKIE")
+            if xueqiu_cookie:
+                try:
+                    print("    正在发布到雪球...")
+                    publisher = XueqiuPublisher(
+                        cookie=xueqiu_cookie,
+                        title=msg_title,
+                        content=xuqiu_html_content)
+                    publisher.publish()
+                    print("    >>> 成功: 已发布到雪球。")
+                    news_data['xueqiu_publish_timestamp'] = datetime.datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+                    publish_state_updated = True
+                except Exception as e:
+                    print(f"    >>> [失败] 发布到雪球时出错: {e}")
+            else:
+                print("    >>> 跳过发布，缺少雪球 Cookie 配置。")
+        else:
+            print("    >>> 跳过发布，数据不是新生成或未被强制发布。")
+    else:
+        print(">>> [5.3] 跳过雪球发布 (配置已禁用)。")
     
-    # 如果发布状态有更新，最后再保存一次
     if publish_state_updated:
         with open(NEWS_DATA_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump(news_data, f, ensure_ascii=False, indent=4)

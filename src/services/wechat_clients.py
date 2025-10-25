@@ -8,6 +8,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from src.config import global_config
 from src.utils.logger import logger # 导入日志模块
 
+import logging
+logging.basicConfig(level=logging.info, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 
 class WeChatMPClient:
     """
@@ -36,7 +40,7 @@ class WeChatMPClient:
             response = self.session.get(url, params=params)
             data = self._handle_response(response)
             self.session.params['access_token'] = data['access_token']
-            logger.info("公众号 access_token 获取成功。")
+            logger.debug("公众号 access_token 获取成功。")
         except Exception as e:
             logger.error(f"公众号 access_token 获取失败: {e}")
             raise
@@ -72,7 +76,7 @@ class WeChatMPClient:
                 params = {'type': 'image'}
                 response = self.session.post(url, params=params, files=files)
             data = self._handle_response(response)
-            logger.info(f"公众号图片上传成功: {json.dumps(data, ensure_ascii=False, indent=2)}")
+            logger.debug(f"公众号图片上传成功: {json.dumps(data, ensure_ascii=False, indent=2)}")
             return data['media_id']
         except Exception as e:
             logger.error(f"公众号图片上传失败: {e}")
@@ -106,7 +110,7 @@ class WeChatMPClient:
             response = self.session.post(url, data=payload, headers=headers)
 
             data = self._handle_response(response)
-            logger.info(f"公众号草稿创建成功: {json.dumps(data, ensure_ascii=False, indent=2)}")
+            logger.debug(f"公众号草稿创建成功: {json.dumps(data, ensure_ascii=False, indent=2)}")
             return data['media_id']
         except Exception as e:
             logger.error(f"公众号草稿创建失败: {e}")
@@ -147,7 +151,7 @@ class WeChatWorkClient:
                 logger.error(error_msg)
                 raise ValueError(error_msg)
             self.session.params['access_token'] = data['access_token']
-            logger.info("企业微信 access_token 获取成功。")
+            logger.debug("企业微信 access_token 获取成功。")
         except requests.exceptions.RequestException as e:
             logger.error(f"企业微信 access_token 获取失败: {e}")
             raise
@@ -174,7 +178,7 @@ class WeChatWorkClient:
                 error_msg = f"[企业微信媒体上传错误] {data.get('errmsg', '未知错误')}"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-            logger.info(f"企业微信媒体上传成功，media_id: {data['media_id']}")
+            logger.debug(f"企业微信媒体上传成功，media_id: {data['media_id']}")
             return data['media_id']
         except Exception as e:
             logger.error(f"企业微信媒体上传失败: {e}")
@@ -220,7 +224,7 @@ class WeChatWorkClient:
                 error_msg = f"[企业微信发送错误] {data.get('errmsg', '未知错误')}"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-            logger.info("企业微信图文消息发送成功。")
+            logger.debug("企业微信图文消息发送成功。")
         except Exception as e:
             logger.error(f"企业微信图文消息发送失败: {e}")
             raise
