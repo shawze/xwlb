@@ -7,7 +7,6 @@ class Config(object):
     """此类用于加载和管理 .ini 配置文件。"""
 
     def __init__(self, config_file='config.ini'):
-        # 构造配置文件的绝对路径
         self._path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config', config_file))
         if not os.path.exists(self._path):
             raise FileNotFoundError(f"配置文件未找到: {self._path}")
@@ -41,17 +40,23 @@ class Config(object):
         self._config.add_section(section)
 
 
-# 创建一个全局单例，供项目的其他模块使用
+# 创建一个全局单例
 global_config = Config()
 
 def load_stage_config(config: Config) -> dict:
     """从配置文件加载工作流阶段控制相关的配置。"""
     cfg = {}
     try:
+        # 读取凭证
+        credential_keys = ["XUEQIU_COOKIE", "EASTMONEY_CTOKEN", "EASTMONEY_UTOKEN"]
+        for key in credential_keys:
+            try:
+                cfg[key] = config.get('Credentials', key)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                cfg[key] = None # 如果没找到，则设为 None
+
         # 读取主要流程开关
-        stage_keys = [
-            "publish_wechat_work", "publish_wechat_mp","publish_xueqiu"
-        ]
+        stage_keys = ["publish_wechat_work", "publish_wechat_mp", "publish_xueqiu", "publish_eastmoney"]
         for key in stage_keys:
             cfg[key] = config.getboolean('StageControl', key)
             
@@ -59,19 +64,20 @@ def load_stage_config(config: Config) -> dict:
         debug_keys = [
             "force_fetch_news", "force_fetch_contents", "force_rerun_analysis",
             "force_regenerate_cover", "force_publish_work", "force_publish_mp",
-            "force_publish_xueqiu"  # <-- 已添加缺失的配置项
+            "force_publish_xueqiu", "force_publish_eastmoney"
         ]
         for key in debug_keys:
             cfg[key] = config.getboolean('DebugControl', key)
             
     except Exception as e:
         print(f"加载 STAGE_CONFIG 失败，请检查 config.ini 文件: {e}")
-        # 在失败时提供一个默认的安全配置，避免程序崩溃
+        # 在失败时提供一个默认的安全配置
         return {
-            "publish_wechat_work": False, "publish_wechat_mp": False, "publish_xueqiu": False,
+            "publish_wechat_work": False, "publish_wechat_mp": False, "publish_xueqiu": False, "publish_eastmoney": False,
             "force_fetch_news": False, "force_fetch_contents": False, "force_rerun_analysis": False,
             "force_regenerate_cover": False, "force_publish_work": False, "force_publish_mp": False,
-            "force_publish_xueqiu": False
+            "force_publish_xueqiu": False, "force_publish_eastmoney": False,
+            "XUEQIU_COOKIE": None, "EASTMONEY_CTOKEN": None, "EASTMONEY_UTOKEN": None
         }
     return cfg
 

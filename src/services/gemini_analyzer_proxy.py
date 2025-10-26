@@ -167,5 +167,5 @@ def analyze_news_with_gemini(news_data: List[Dict[str, str]]) -> str:
         print(f"发生未知错误: {e}")
 
 
-if __name__ == '__main__':
-    analyze_news_with_gemini(["",""])
+# if __name__ == '__main__':
+#     analyze_news_with_gemini(["",""])

@@ -1,6 +1,9 @@
 import asyncio
+import pprint
+
 import markdown
 import datetime
+import re
 from zoneinfo import ZoneInfo
 import os
 import sys
@@ -21,6 +24,7 @@ from src.services.gemini_analyzer_proxy import analyze_news_with_gemini
 from src.services.wechat_clients import WeChatWorkClient, WeChatMPClient
 from src.services.xueqiu import XueqiuPublisher
 from src.utils.image_processor import download_selected_images, create_image_grid
+from src.services.eastmoney import EastmoneyPublisher
 
 # --- 全局常量 ---
 IMAGES_OUTPUT_DIR = os.path.join(project_root, 'images', 'collages')
@@ -108,10 +112,10 @@ async def main_workflow():
         print(">>> [2.2] 正在获取新闻详细内容...")
         if STAGE_CONFIG.get("force_fetch_contents", False) and "contents" in news_data:
             print("    `force_fetch_contents` 已激活，强制重新获取。")
-        
+
         news_links = news_data.get("news_list_detail", [])
         items_to_fetch = news_links
-        
+
         news_contents = [fetch_item_content(item) for item in items_to_fetch]
 
         # 处理结果，过滤掉None和异常
@@ -121,7 +125,7 @@ async def main_workflow():
                 print(f"    [警告] 一个新闻详细内容抓取失败: {item}")
             elif item:
                 valid_contents.append(item)
-        
+
         news_data['contents'] = valid_contents
         with open(NEWS_DATA_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump(news_data, f, ensure_ascii=False, indent=4)
@@ -166,7 +170,7 @@ async def main_workflow():
     if ("mp_thumb_media_id" not in news_data or "work_thumb_media_id" not in news_data or STAGE_CONFIG.get("force_regenerate_cover", False)) and img_urls:
         if STAGE_CONFIG.get("force_regenerate_cover", False):
             print(">>> `force_regenerate_cover` 已激活，强制重新生成和上传封面。")
-        
+
         # 4.1 查找或生成封面图
         print(">>> [4.1] 正在查找或生成封面图...")
         collage_path = None
@@ -229,7 +233,7 @@ async def main_workflow():
                     print(f"    [错误] 上传封面图至企业微信时出错: {e}")
             else:
                 print("    企业微信封面图Media ID已存在，跳过上传。")
-            
+
             if media_ids_updated:
                 with open(NEWS_DATA_CACHE_PATH, 'w', encoding='utf-8') as f:
                     json.dump(news_data, f, ensure_ascii=False, indent=4)
@@ -260,14 +264,23 @@ async def main_workflow():
     should_publish_work = (is_eligible_for_auto_publish and not news_data.get("work_publish_timestamp")) or STAGE_CONFIG.get("force_publish_work", False)
     should_publish_mp = (is_eligible_for_auto_publish and not news_data.get("mp_publish_timestamp")) or STAGE_CONFIG.get("force_publish_mp", False)
     should_publish_xueqiu = (is_eligible_for_auto_publish and not news_data.get("xueqiu_publish_timestamp")) or STAGE_CONFIG.get("force_publish_xueqiu", False)
+    should_publish_eastmoney = (is_eligible_for_auto_publish and not news_data.get("eastmoney_publish_timestamp")) or STAGE_CONFIG.get("force_publish_eastmoney", False)
 
     # 准备HTML内容 (用于微信)
     html_content = markdown.markdown(analysis_text)
-    clean_html_content = html_content.replace("\n", "").replace("\r", "").strip()
+    # 移除换行符
+    clean_html_content_base = html_content.replace("\n", "").replace("\r", "").strip()
+    # 在<h3><strong>...</strong></h3> 标签后添加一个空行以改善间距
+    clean_html_content = re.sub(r'(<h3><strong>.*?</strong></h3>)', r'<p><br></p>\1<p><br></p>', clean_html_content_base)
     qr_code_url = "https://mmbiz.qpic.cn/sz_mmbiz_png/oJkJlLSQ7U2ibmnVgKW2PzL3oicrSta2njI9ghvUiaghV3p1g9oHKTagyqN3iacwswMRDOjJibnKsbK1Z0AzfMcoUDQ/640?wx_fmt=png&amp"
-    fill_html = "<section><span><br></span></section>"
+    br_html = "<p><br></p>"
     html_qrcode = f'<div><img src="{qr_code_url}"></div>'
-    final_html_content = clean_html_content + fill_html + fill_html + html_qrcode
+    gongzhonghao_text = f'<div><strong>关注微信公众号,每日定时更新: Cloudify </strong></div>'
+
+    final_html_content = gongzhonghao_text  + clean_html_content + br_html + gongzhonghao_text + html_qrcode
+    # 东方财富发布格式
+    dongfang_html_content = gongzhonghao_text  + clean_html_content_base + gongzhonghao_text
+    # pprint.pp(final_html_content)
     print(">>> HTML内容已为微信平台生成。")
 
     publish_state_updated = False
@@ -314,20 +327,19 @@ async def main_workflow():
         print(">>> [5.2] 跳过微信公众号发布 (配置已禁用)。")
 
     # c. 雪球发布
-    html_xuqiu = f'<div><strong>关注微信公众号,每日定时更新: Cloudify </strong></div>'
-    xuqiu_html_content = html_xuqiu + fill_html + fill_html + clean_html_content + fill_html + fill_html + html_xuqiu
+
 
     if STAGE_CONFIG.get("publish_xueqiu", False):
         print(">>> [5.3] 雪球发布...")
         if should_publish_xueqiu:
-            xueqiu_cookie = global_config.get("XUEQIU","XUEQIU_COOKIE")
+            xueqiu_cookie = STAGE_CONFIG.get("XUEQIU_COOKIE")
             if xueqiu_cookie:
                 try:
                     print("    正在发布到雪球...")
                     publisher = XueqiuPublisher(
                         cookie=xueqiu_cookie,
                         title=msg_title,
-                        content=xuqiu_html_content)
+                        content=final_html_content)
                     publisher.publish()
                     print("    >>> 成功: 已发布到雪球。")
                     news_data['xueqiu_publish_timestamp'] = datetime.datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
@@ -340,7 +352,38 @@ async def main_workflow():
             print("    >>> 跳过发布，数据不是新生成或未被强制发布。")
     else:
         print(">>> [5.3] 跳过雪球发布 (配置已禁用)。")
-    
+
+    # d. 东方财富发布
+    if STAGE_CONFIG.get("publish_eastmoney", False):
+        print(">>> [5.4] 东方财富发布...")
+        if should_publish_eastmoney:
+            ctoken = STAGE_CONFIG.get("EASTMONEY_CTOKEN")
+            utoken = STAGE_CONFIG.get("EASTMONEY_UTOKEN")
+            if ctoken and utoken:
+                try:
+                    publisher = EastmoneyPublisher(
+                        ctoken=ctoken,
+                        utoken=utoken,
+                        title=msg_title,
+                        # content=final_html_content,
+                        # content=clean_html_content,
+                        content=clean_html_content_base,
+                        # content=dongfang_html_content,
+                    )
+                    res_status = publisher.publish()
+                    if res_status:
+                        news_data['eastmoney_publish_timestamp'] = datetime.datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+                        publish_state_updated = True
+                        print("    >>> 成功: 已发布到东方财富。")
+                except Exception as e:
+                    print(f"    >>> [失败] 发布到东方财富时出错: {e}")
+            else:
+                print("    >>> 跳过发布，缺少东方财富 ctoken 或 utoken 配置。")
+        else:
+            print("    >>> 跳过发布，数据不是新生成或未被强制发布。")
+    else:
+        print(">>> [5.4] 跳过东方财富发布 (配置已禁用)。")
+
     if publish_state_updated:
         with open(NEWS_DATA_CACHE_PATH, 'w', encoding='utf-8') as f:
             json.dump(news_data, f, ensure_ascii=False, indent=4)

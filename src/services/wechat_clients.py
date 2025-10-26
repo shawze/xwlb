@@ -97,8 +97,8 @@ class WeChatMPClient:
                 "title": title,
                 "thumb_media_id": thumb_media_id,
                 "content": content,
-                "author": kwargs.get("author", "AI Analyst"),
-                "digest": kwargs.get("digest", "每日新闻精选"),
+                "author": kwargs.get("author", "xiaoze"),
+                "digest": kwargs.get("digest", "新闻联播 解读 股票 政策 财经"),
                 "show_cover_pic": 1 if thumb_media_id else 0
                 # "content_source_url": kwargs.get("content_source_url", "https://tv.cctv.com/lm/xwlb/")
             }]
