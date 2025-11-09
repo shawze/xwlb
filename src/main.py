@@ -20,7 +20,8 @@ if project_root not in sys.path:
 from src.config import STAGE_CONFIG # 导入外部配置
 from src.config import global_config
 from src.services.cctv_fetcher import fetch_news_data, fetch_item_content
-from src.services.gemini_analyzer_proxy import analyze_news_with_gemini
+from src.services.gemini_analyzer_proxy import analyze_news_with_gemini as analyze_with_proxy
+from src.services.gemini_analyzer import analyze_news_with_gemini as analyze_with_default_analyzer
 from src.services.wechat_clients import WeChatWorkClient, WeChatMPClient
 from src.services.xueqiu import XueqiuPublisher
 from src.utils.image_processor import download_selected_images, create_image_grid
@@ -143,7 +144,13 @@ async def main_workflow():
         if STAGE_CONFIG.get("force_rerun_analysis", False) and "analysis" in news_data:
             print("    `force_rerun_analysis` 已激活，强制重新分析。")
         try:
-            generated_analysis =  analyze_news_with_gemini(valid_contents)
+            if STAGE_CONFIG.get("use_gemini_analyzer_proxy", False):
+                print("    使用代理分析器 (gemini_analyzer_proxy)...")
+                generated_analysis = analyze_with_proxy(valid_contents)
+            else:
+                print("    使用默认分析器 (gemini_analyzer)...")
+                generated_analysis = await analyze_with_default_analyzer(valid_contents)
+
             if generated_analysis:
                 analysis_text = generated_analysis
                 news_data['analysis'] = analysis_text
@@ -275,7 +282,7 @@ async def main_workflow():
     qr_code_url = "https://mmbiz.qpic.cn/sz_mmbiz_png/oJkJlLSQ7U2ibmnVgKW2PzL3oicrSta2njI9ghvUiaghV3p1g9oHKTagyqN3iacwswMRDOjJibnKsbK1Z0AzfMcoUDQ/640?wx_fmt=png&amp"
     br_html = "<p><br></p>"
     html_qrcode = f'<div><img src="{qr_code_url}"></div>'
-    gongzhonghao_text = f'<div><strong>关注微信公众号,每日定时更新: Cloudify </strong></div>'
+    gongzhonghao_text = f'<div><strong>公众号 Cloudify 每日更新, 欢迎关注转发:  </strong></div>'
 
     final_html_content = gongzhonghao_text  + clean_html_content + br_html + gongzhonghao_text + html_qrcode
     # 东方财富发布格式
@@ -367,8 +374,8 @@ async def main_workflow():
                         title=msg_title,
                         # content=final_html_content,
                         # content=clean_html_content,
-                        content=clean_html_content_base,
-                        # content=dongfang_html_content,
+                        # content=clean_html_content_base,
+                        content=dongfang_html_content,
                     )
                     res_status = publisher.publish()
                     if res_status:

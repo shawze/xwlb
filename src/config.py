@@ -56,7 +56,7 @@ def load_stage_config(config: Config) -> dict:
                 cfg[key] = None # 如果没找到，则设为 None
 
         # 读取主要流程开关
-        stage_keys = ["publish_wechat_work", "publish_wechat_mp", "publish_xueqiu", "publish_eastmoney"]
+        stage_keys = ["publish_wechat_work", "publish_wechat_mp", "publish_xueqiu", "publish_eastmoney", "use_gemini_analyzer_proxy"]
         for key in stage_keys:
             cfg[key] = config.getboolean('StageControl', key)
             
@@ -74,6 +74,7 @@ def load_stage_config(config: Config) -> dict:
         # 在失败时提供一个默认的安全配置
         return {
             "publish_wechat_work": False, "publish_wechat_mp": False, "publish_xueqiu": False, "publish_eastmoney": False,
+            "use_gemini_analyzer_proxy": False,
             "force_fetch_news": False, "force_fetch_contents": False, "force_rerun_analysis": False,
             "force_regenerate_cover": False, "force_publish_work": False, "force_publish_mp": False,
             "force_publish_xueqiu": False, "force_publish_eastmoney": False,
